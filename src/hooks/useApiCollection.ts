@@ -15,16 +15,15 @@ interface UpdateArgs<T> {
 }
 
 const useApiCollection = <T>(
-  key: QueryKey,
-  { path, getId, enabled = true, transform }: UseApiCollectionOptions<T>,
+    key: QueryKey,
+    { path, getId, enabled = true, transform }: UseApiCollectionOptions<T>,
 ) => {
   const apiFetch = useApi();
   const queryClient = useQueryClient();
-
   const query = useApiQuery<T[]>(key, { path, enabled, transform });
 
-  const addMutation = useMutation(
-    async (item: Partial<T>) => {
+  const addMutation = useMutation({
+    mutationFn: async (item: Partial<T>) => {
       const res = await apiFetch(path, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -33,15 +32,13 @@ const useApiCollection = <T>(
       if (!res.ok) throw new Error('Failed to add item');
       return res.json();
     },
-    {
-      onSuccess: (newItem: T) => {
-        queryClient.setQueryData<T[]>(key, (old = []) => [...old, newItem]);
-      },
+    onSuccess: (newItem: T) => {
+      queryClient.setQueryData<T[]>(key, (old = []) => [...old, newItem]);
     },
-  );
+  });
 
-  const updateMutation = useMutation(
-    async ({ id, data }: UpdateArgs<T>) => {
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: UpdateArgs<T>) => {
       const res = await apiFetch(`${path}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -50,38 +47,34 @@ const useApiCollection = <T>(
       if (!res.ok) throw new Error('Failed to update item');
       return res.json();
     },
-    {
-      onSuccess: (updatedItem: T) => {
-        queryClient.setQueryData<T[]>(key, (old = []) =>
+    onSuccess: (updatedItem: T) => {
+      queryClient.setQueryData<T[]>(key, (old = []) =>
           old.map((item) => (getId(item) === getId(updatedItem) ? updatedItem : item)),
-        );
-      },
+      );
     },
-  );
+  });
 
-  const removeMutation = useMutation(
-    async (id: string | number) => {
+  const removeMutation = useMutation({
+    mutationFn: async (id: string | number) => {
       const res = await apiFetch(`${path}/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to remove item');
       return id;
     },
-    {
-      onSuccess: (id) => {
-        queryClient.setQueryData<T[]>(key, (old = []) =>
+    onSuccess: (id) => {
+      queryClient.setQueryData<T[]>(key, (old = []) =>
           old.filter((item) => getId(item) !== id),
-        );
-      },
+      );
     },
-  );
+  });
 
   return {
     ...query,
     addItem: addMutation.mutateAsync,
     updateItem: updateMutation.mutateAsync,
     removeItem: removeMutation.mutateAsync,
-    adding: addMutation.isLoading,
-    updating: updateMutation.isLoading,
-    removing: removeMutation.isLoading,
+    adding: addMutation.isPending,
+    updating: updateMutation.isPending,
+    removing: removeMutation.isPending,
   };
 };
 
