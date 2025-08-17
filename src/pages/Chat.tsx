@@ -6,17 +6,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import useApi from '../hooks/useApi';
 import useApiQuery from '../hooks/useApiQuery';
 import useApiCollection from '../hooks/useApiCollection';
-
-interface Conversation {
-  id: string;
-  title?: string | null;
-}
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant' | 'system' | 'tool';
-  content: string;
-}
+import type { Conversation } from '../models/Conversation';
+import type { Message } from '../models/Message';
+import type { File as FileModel } from '../models/File';
 
 const Chat: React.FC = () => {
   const { token } = useAuth();
@@ -74,7 +66,7 @@ const Chat: React.FC = () => {
 
   // --- Mutations -----------------------------------------------------------
   const sendMessageMutation = useMutation(
-    async (content: string) => {
+    async ({ content, files }: { content: string; files: FileModel[] }) => {
       let conversationId = currentConversationId;
       if (!conversationId) {
         const conv = await addConversation({ title: null });
@@ -87,6 +79,7 @@ const Chat: React.FC = () => {
         id: `${Date.now()}-user`,
         role: 'user',
         content,
+        files,
       };
       queryClient.setQueryData<Message[]>(
         ['messages', conversationId, token],
@@ -98,7 +91,7 @@ const Chat: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ role: 'user', content }),
+        body: JSON.stringify({ role: 'user', content, file_ids: files.map((f) => f.id) }),
       });
 
       const res = await apiFetch('/v1/chat/completions', {
@@ -109,7 +102,7 @@ const Chat: React.FC = () => {
         },
         body: JSON.stringify({
           model: selectedModel,
-          messages: [{ role: 'user', content }],
+          messages: [{ role: 'user', content, file_ids: files.map((f) => f.id) }],
         }),
       });
 
@@ -148,9 +141,9 @@ const Chat: React.FC = () => {
     queryClient.setQueryData(['messages', conv.id, token], []);
   };
 
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = (content: string, files: FileModel[]) => {
     if (!selectedModel) return;
-    sendMessageMutation.mutate(content);
+    sendMessageMutation.mutate({ content, files });
   };
 
   // Filter conversations based on search term
