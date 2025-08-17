@@ -40,7 +40,7 @@ const useApiCollection = <T>(
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: UpdateArgs<T>) => {
       const res = await apiFetch(`${path}/${id}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });

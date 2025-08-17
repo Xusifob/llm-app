@@ -263,7 +263,7 @@ const Chat: React.FC = () => {
           <ChatWindow
             messages={messages}
             onSend={handleSendMessage}
-            loadingReply={sendMessageMutation.isLoading}
+            loadingReply={sendMessageMutation.isPending}
             conversationTitle={currentConversation?.title || 'Untitled Conversation'}
             isArchived={!!currentConversation?.archived}
             onRenameConversation={handleRenameCurrent}
