@@ -7,17 +7,33 @@ interface ChatWindowProps {
   messages: Message[];
   onSend: (content: string, files: FileModel[]) => void;
   loadingReply: boolean;
+  conversationTitle: string;
+  isArchived: boolean;
+  onRenameConversation: (title: string) => void;
+  onToggleArchive: () => void;
+  onDeleteConversation: () => void;
 }
 
 /**
  * Displays chat messages and a composer for sending new messages.
  */
-const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSend, loadingReply }) => {
+const ChatWindow: React.FC<ChatWindowProps> = ({
+  messages,
+  onSend,
+  loadingReply,
+  conversationTitle,
+  isArchived,
+  onRenameConversation,
+  onToggleArchive,
+  onDeleteConversation,
+}) => {
   const apiFetch = useApi();
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<FileModel[]>([]);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
 
   const handleFiles = async (fileList: FileList) => {
     const arr = Array.from(fileList);
@@ -74,6 +90,68 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSend, loadingReply 
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="border-b p-4 flex items-center justify-between bg-white">
+        {editingTitle ? (
+          <div className="flex items-center space-x-1">
+            <input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="border border-gray-300 rounded px-1 text-sm"
+              autoFocus
+            />
+            <button
+              onClick={() => {
+                onRenameConversation(editTitle.trim());
+                setEditingTitle(false);
+              }}
+              className="text-green-600 text-xs"
+            >
+              ✓
+            </button>
+            <button
+              onClick={() => {
+                setEditingTitle(false);
+                setEditTitle('');
+              }}
+              className="text-red-600 text-xs"
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <h2 className="truncate text-sm font-medium">
+              {conversationTitle}
+            </h2>
+            <button
+              onClick={() => {
+                setEditingTitle(true);
+                setEditTitle(conversationTitle);
+              }}
+              className="text-gray-500 hover:text-gray-700 text-xs"
+            >
+              ✎
+            </button>
+          </div>
+        )}
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={onToggleArchive}
+            className="text-gray-500 hover:text-gray-700 text-xs"
+            title={isArchived ? 'Unarchive' : 'Archive'}
+          >
+            {isArchived ? '📤' : '🗄'}
+          </button>
+          <button
+            onClick={onDeleteConversation}
+            className="text-gray-500 hover:text-gray-700 text-xs"
+            title="Delete"
+          >
+            🗑
+          </button>
+        </div>
+      </div>
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
@@ -183,3 +261,4 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSend, loadingReply 
 };
 
 export default ChatWindow;
+

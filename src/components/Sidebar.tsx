@@ -3,6 +3,7 @@ import React from 'react';
 interface ConversationItem {
   id: string;
   title?: string | null;
+  archived?: boolean;
 }
 
 interface SidebarProps {
@@ -11,6 +12,8 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
   onRenameConversation: (id: string, title: string) => void;
+  onToggleArchiveConversation: (id: string, archived: boolean) => void;
+  onDeleteConversation: (id: string) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   models: string[];
@@ -24,6 +27,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSelectConversation,
   onNewChat,
   onRenameConversation,
+  onToggleArchiveConversation,
+  onDeleteConversation,
   searchTerm,
   setSearchTerm,
   models,
@@ -137,18 +142,42 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <span className="truncate">{title}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startEditing(conv.id, title);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 ml-2 text-gray-500 hover:text-gray-700 text-xs"
+                  <div className="flex items-center justify-between w-full">
+                    <span
+                      className={`truncate ${conv.archived ? 'text-gray-400 italic' : ''}`}
                     >
-                      ✎
-                    </button>
-                  </>
+                      {title}
+                    </span>
+                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 ml-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditing(conv.id, title);
+                        }}
+                        className="text-gray-500 hover:text-gray-700 text-xs"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleArchiveConversation(conv.id, !conv.archived);
+                        }}
+                        className="text-gray-500 hover:text-gray-700 text-xs"
+                      >
+                        {conv.archived ? '📤' : '🗄'}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteConversation(conv.id);
+                        }}
+                        className="text-gray-500 hover:text-gray-700 text-xs"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  </div>
                 )}
               </li>
             );
