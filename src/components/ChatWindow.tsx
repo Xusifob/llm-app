@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import useApi from '../hooks/useApi';
 import type { Message } from '../models/Message';
 import type { File as FileModel } from '../models/File';
+import { FiEdit, FiArchive, FiInbox, FiTrash, FiCheck, FiX } from 'react-icons/fi';
 
 interface ChatWindowProps {
   messages: Message[];
@@ -93,7 +94,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
       {/* Header */}
       <div className="border-b p-4 flex items-center justify-between bg-white">
         {editingTitle ? (
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-2">
             <input
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
@@ -105,22 +106,22 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
                 onRenameConversation(editTitle.trim());
                 setEditingTitle(false);
               }}
-              className="text-green-600 text-xs"
+              className="text-gray-500 hover:text-gray-700 text-xs"
             >
-              ✓
+              <FiCheck />
             </button>
             <button
               onClick={() => {
                 setEditingTitle(false);
                 setEditTitle('');
               }}
-              className="text-red-600 text-xs"
+              className="text-gray-500 hover:text-gray-700 text-xs"
             >
-              ✕
+              <FiX />
             </button>
           </div>
         ) : (
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             <h2 className="truncate text-sm font-medium">
               {conversationTitle}
             </h2>
@@ -131,7 +132,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
               }}
               className="text-gray-500 hover:text-gray-700 text-xs"
             >
-              ✎
+              <FiEdit />
             </button>
           </div>
         )}
@@ -141,14 +142,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             className="text-gray-500 hover:text-gray-700 text-xs"
             title={isArchived ? 'Unarchive' : 'Archive'}
           >
-            {isArchived ? '📤' : '🗄'}
+            {isArchived ? <FiInbox /> : <FiArchive />}
           </button>
           <button
             onClick={onDeleteConversation}
             className="text-gray-500 hover:text-gray-700 text-xs"
             title="Delete"
           >
-            🗑
+            <FiTrash />
           </button>
         </div>
       </div>
@@ -204,14 +205,14 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             {files.map((f) => (
               <div
                 key={f.id}
-                className="flex items-center space-x-1 bg-gray-100 px-2 py-1 rounded"
+                className="flex items-center space-x-2 bg-gray-100 px-2 py-1 rounded"
               >
                 <span className="text-xs">{f.name}</span>
                 <button
                   onClick={() => handleRemoveFile(f.id)}
-                  className="text-xs text-red-500"
+                  className="text-gray-500 hover:text-gray-700 text-xs"
                 >
-                  ×
+                  <FiX />
                 </button>
               </div>
             ))}
