@@ -106,36 +106,41 @@ const Chat: React.FC = () => {
         body: JSON.stringify({ role: 'user', content, file_ids: files.map((f) => f.id) }),
       });
 
-      const res = await apiFetch('/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Conversation-Id': conversationId,
-        },
-        body: JSON.stringify({
-          model,
-          messages: [{ role: 'user', content, file_ids: files.map((f) => f.id) }],
-        }),
-      });
-
-      let assistantContent = '';
-      if (res.ok) {
-        const data = await res.json();
-        const choices = (data as any).choices;
-        if (Array.isArray(choices) && choices[0]?.message?.content) {
-          assistantContent = choices[0].message.content;
-        }
-      }
-
       const assistantMsg: Message = {
         id: `${Date.now()}-assistant`,
         role: 'assistant',
-        content: assistantContent,
+        content: '',
       };
       queryClient.setQueryData<Message[]>(
         ['messages', conversationId, token],
         (old = []) => [...old, assistantMsg],
       );
+
+      const res = await apiFetch(`/conversations/${conversationId}/reply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model }),
+      });
+
+      let assistantContent = '';
+      if (res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          assistantContent += decoder.decode(value, { stream: true });
+          queryClient.setQueryData<Message[]>(
+            ['messages', conversationId, token],
+            (old = []) =>
+              old.map((m) =>
+                m.id === assistantMsg.id ? { ...m, content: assistantContent } : m,
+              ),
+          );
+        }
+      }
 
       await apiFetch(`/conversations/${conversationId}/messages`, {
         method: 'POST',

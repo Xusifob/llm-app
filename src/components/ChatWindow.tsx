@@ -110,7 +110,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, onSend, loadingReply 
             </div>
           </div>
         ))}
-        {loadingReply && (
+        {loadingReply && messages[messages.length - 1]?.role !== 'assistant' && (
           <div className="flex justify-start">
             <div className="max-w-sm p-3 rounded-lg text-sm bg-gray-200 text-gray-900 rounded-bl-none italic opacity-75">
               Thinking...
