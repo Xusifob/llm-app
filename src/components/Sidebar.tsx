@@ -1,4 +1,5 @@
 import React from 'react';
+import { FiEdit, FiArchive, FiInbox, FiTrash, FiCheck, FiX } from 'react-icons/fi';
 
 interface ConversationItem {
   id: string;
@@ -115,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 }`}
               >
                 {isEditing ? (
-                  <div className="flex items-center w-full space-x-1">
+                  <div className="flex items-center w-full space-x-2">
                     <input
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
@@ -127,18 +128,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                         e.stopPropagation();
                         handleRename(conv.id);
                       }}
-                      className="text-green-600 text-xs"
+                      className="text-gray-500 hover:text-gray-700 text-xs"
                     >
-                      ✓
+                      <FiCheck />
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         cancelEditing();
                       }}
-                      className="text-red-600 text-xs"
+                      className="text-gray-500 hover:text-gray-700 text-xs"
                     >
-                      ✕
+                      <FiX />
                     </button>
                   </div>
                 ) : (
@@ -148,7 +149,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     >
                       {title}
                     </span>
-                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 ml-2">
+                    <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 ml-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -156,7 +157,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }}
                         className="text-gray-500 hover:text-gray-700 text-xs"
                       >
-                        ✎
+                        <FiEdit />
                       </button>
                       <button
                         onClick={(e) => {
@@ -165,7 +166,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }}
                         className="text-gray-500 hover:text-gray-700 text-xs"
                       >
-                        {conv.archived ? '📤' : '🗄'}
+                        {conv.archived ? <FiInbox /> : <FiArchive />}
                       </button>
                       <button
                         onClick={(e) => {
@@ -174,7 +175,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }}
                         className="text-gray-500 hover:text-gray-700 text-xs"
                       >
-                        🗑
+                        <FiTrash />
                       </button>
                     </div>
                   </div>
