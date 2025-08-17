@@ -10,6 +10,7 @@ interface SidebarProps {
   currentConversationId: string | null;
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
+  onRenameConversation: (id: string, title: string) => void;
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   models: string[];
@@ -22,12 +23,31 @@ const Sidebar: React.FC<SidebarProps> = ({
   currentConversationId,
   onSelectConversation,
   onNewChat,
+  onRenameConversation,
   searchTerm,
   setSearchTerm,
   models,
   selectedModel,
   onModelChange,
 }) => {
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editTitle, setEditTitle] = React.useState('');
+
+  const startEditing = (id: string, currentTitle: string) => {
+    setEditingId(id);
+    setEditTitle(currentTitle);
+  };
+
+  const handleRename = (id: string) => {
+    onRenameConversation(id, editTitle.trim());
+    setEditingId(null);
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditTitle('');
+  };
+
   return (
     <div className="w-72 border-r border-gray-200 bg-white flex flex-col hidden lg:flex">
       {/* New chat and model selection */}
@@ -80,15 +100,56 @@ const Sidebar: React.FC<SidebarProps> = ({
           {conversations.map((conv) => {
             const isActive = conv.id === currentConversationId;
             const title = conv.title || 'Untitled Conversation';
+            const isEditing = editingId === conv.id;
             return (
               <li
                 key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
-                className={`cursor-pointer px-4 py-3 text-sm ${
+                onClick={() => !isEditing && onSelectConversation(conv.id)}
+                className={`group cursor-pointer px-4 py-3 text-sm flex items-center justify-between ${
                   isActive ? 'bg-indigo-50 font-medium' : 'hover:bg-gray-100'
                 }`}
               >
-                {title}
+                {isEditing ? (
+                  <div className="flex items-center w-full space-x-1">
+                    <input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="flex-1 border border-gray-300 rounded px-1 text-sm"
+                      autoFocus
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRename(conv.id);
+                      }}
+                      className="text-green-600 text-xs"
+                    >
+                      ✓
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cancelEditing();
+                      }}
+                      className="text-red-600 text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="truncate">{title}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditing(conv.id, title);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 ml-2 text-gray-500 hover:text-gray-700 text-xs"
+                    >
+                      ✎
+                    </button>
+                  </>
+                )}
               </li>
             );
           })}

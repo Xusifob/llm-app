@@ -36,9 +36,11 @@ const Chat: React.FC = () => {
   }, [models, selectedModel]);
 
   // --- Conversations -------------------------------------------------------
-  const { data: conversations = [], addItem: addConversation } = useApiCollection<
-    Conversation
-  >(
+  const {
+    data: conversations = [],
+    addItem: addConversation,
+    updateItem: updateConversation,
+  } = useApiCollection<Conversation>(
     ['conversations', token],
     {
       path: '/conversations',
@@ -66,8 +68,18 @@ const Chat: React.FC = () => {
 
   // --- Mutations -----------------------------------------------------------
   const sendMessageMutation = useMutation(
-    async ({ content, files }: { content: string; files: FileModel[] }) => {
-      let conversationId = currentConversationId;
+    async ({
+      conversationId: initialId,
+      model,
+      content,
+      files,
+    }: {
+      conversationId: string | null;
+      model: string;
+      content: string;
+      files: FileModel[];
+    }) => {
+      let conversationId = initialId;
       if (!conversationId) {
         const conv = await addConversation({ title: null });
         conversationId = conv.id;
@@ -101,7 +113,7 @@ const Chat: React.FC = () => {
           'X-Conversation-Id': conversationId,
         },
         body: JSON.stringify({
-          model: selectedModel,
+          model,
           messages: [{ role: 'user', content, file_ids: files.map((f) => f.id) }],
         }),
       });
@@ -143,7 +155,12 @@ const Chat: React.FC = () => {
 
   const handleSendMessage = (content: string, files: FileModel[]) => {
     if (!selectedModel) return;
-    sendMessageMutation.mutate({ content, files });
+    sendMessageMutation.mutate({
+      conversationId: currentConversationId,
+      model: selectedModel,
+      content,
+      files,
+    });
   };
 
   // Filter conversations based on search term
@@ -160,6 +177,9 @@ const Chat: React.FC = () => {
         currentConversationId={currentConversationId}
         onSelectConversation={(id) => setCurrentConversationId(id)}
         onNewChat={handleNewChat}
+        onRenameConversation={(id, title) =>
+          updateConversation({ id, data: { title } })
+        }
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         models={models}
