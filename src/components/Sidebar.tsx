@@ -29,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onModelChange,
 }) => {
   return (
-    <div className="w-72 border-l border-gray-200 bg-white flex flex-col hidden lg:flex">
+    <div className="w-72 border-r border-gray-200 bg-white flex flex-col hidden lg:flex">
       {/* New chat and model selection */}
       <div className="p-4 border-b flex flex-col space-y-2">
         <button

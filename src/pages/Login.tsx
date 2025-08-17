@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useMutation } from '@tanstack/react-query';
 
 const Login: React.FC = () => {
   const { login } = useAuth();
@@ -8,20 +9,16 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const loginMutation = useMutation({
+    mutationFn: () => login(email, password),
+    onSuccess: () => navigate('/chat'),
+    onError: (err: any) => setError((err as Error).message),
+  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-    try {
-      await login(email, password);
-      navigate('/chat');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
+    loginMutation.mutate();
   };
 
   return (
@@ -62,10 +59,10 @@ const Login: React.FC = () => {
           </div>
           <button
             type="submit"
-            disabled={loading}
+            disabled={loginMutation.isLoading}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loginMutation.isLoading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
         <p className="mt-4 text-center text-sm text-gray-600">
