@@ -57,13 +57,12 @@ const Chat: React.FC = () => {
   }, [conversations, currentConversationId]);
 
   // --- Messages ------------------------------------------------------------
-  const { data: messages = [] } = useApiQuery<Message[]>(
+  const { data: messages = [] } = useApiCollection<Message>(
     ['messages', currentConversationId, token],
     {
-      path: `/conversations/${currentConversationId}`,
+      path: `/conversations/${currentConversationId}/messages`,
       enabled: !!currentConversationId,
-      transform: (data: any) =>
-        Array.isArray(data.messages) ? data.messages : [],
+      getId: (m) => m.id,
     },
   );
 
@@ -143,12 +142,8 @@ const Chat: React.FC = () => {
         }
       }
 
-      await apiFetch(`/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role: 'assistant', content: assistantContent }),
+      await queryClient.invalidateQueries({
+        queryKey: ['messages', conversationId, token],
       });
     },
   );
