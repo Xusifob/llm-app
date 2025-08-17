@@ -2,9 +2,13 @@ import { useMutation, useQueryClient, QueryKey } from '@tanstack/react-query';
 import useApiQuery from './useApiQuery';
 import useApi from './useApi';
 
-interface UseApiCollectionOptions<T> {
+interface Entity {
+  id: string | number;
+}
+
+interface UseApiCollectionOptions<T extends Entity> {
   path: string;
-  getId: (item: T) => string | number;
+  getId?: (item: T) => string | number;
   enabled?: boolean;
   transform?: (data: any) => T[];
 }
@@ -14,13 +18,42 @@ interface UpdateArgs<T> {
   data: Partial<T>;
 }
 
-const useApiCollection = <T>(
+const useApiCollection = <T extends Entity>(
     key: QueryKey,
-    { path, getId, enabled = true, transform }: UseApiCollectionOptions<T>,
+    { path, getId : getIdProps, enabled = true, transform }: UseApiCollectionOptions<T>,
 ) => {
+
+  const getId = getIdProps ? getIdProps : (item: T) => {
+    if (typeof item === 'object' && item !== null && 'id' in item) {
+      return (item as Entity).id;
+    }
+    throw new Error('Item does not have an id property');
+  }
+
   const apiFetch = useApi();
   const queryClient = useQueryClient();
   const query = useApiQuery<T[]>(key, { path, enabled, transform });
+
+  const updateCollection = (item: T, removeItem ?: boolean) => {
+    const id = getId(item);
+    queryClient.setQueryData<T[]>(key, (old = []) => {
+      const index = old.findIndex((i) => getId(i) === id);
+
+      if(removeItem) {
+        if (index === -1) {
+          return old;
+        } else {
+          return old.filter((i) => getId(i) !== id);
+        }
+      }
+
+      if (index === -1) {
+        return [...old, item];
+      } else {
+        return old.map((i) => (getId(i) === id ? item : i));
+      }
+    });
+  };
 
   const addMutation = useMutation({
     mutationFn: async (item: Partial<T>) => {
@@ -33,7 +66,7 @@ const useApiCollection = <T>(
       return res.json();
     },
     onSuccess: (newItem: T) => {
-      queryClient.setQueryData<T[]>(key, (old = []) => [...old, newItem]);
+      updateCollection(newItem);
     },
   });
 
@@ -48,9 +81,7 @@ const useApiCollection = <T>(
       return res.json();
     },
     onSuccess: (updatedItem: T) => {
-      queryClient.setQueryData<T[]>(key, (old = []) =>
-          old.map((item) => (getId(item) === getId(updatedItem) ? updatedItem : item)),
-      );
+      updateCollection(updatedItem);
     },
   });
 
@@ -61,9 +92,8 @@ const useApiCollection = <T>(
       return id;
     },
     onSuccess: (id) => {
-      queryClient.setQueryData<T[]>(key, (old = []) =>
-          old.filter((item) => getId(item) !== id),
-      );
+        updateCollection({id} as T, true); // Pass empty object to trigger removal
+        queryClient.invalidateQueries({ queryKey: key }); // Invalidate the query to refetch if needed
     },
   });
 
@@ -75,6 +105,8 @@ const useApiCollection = <T>(
     adding: addMutation.isPending,
     updating: updateMutation.isPending,
     removing: removeMutation.isPending,
+    updateCollection,
+    loading: addMutation.isPending || updateMutation.isPending || removeMutation.isPending,
   };
 };
 

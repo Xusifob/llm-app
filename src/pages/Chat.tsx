@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatWindow from '../components/ChatWindow';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import useApi from '../hooks/useApi';
 import useApiQuery from '../hooks/useApiQuery';
 import useApiCollection from '../hooks/useApiCollection';
@@ -57,94 +57,12 @@ const Chat: React.FC = () => {
   }, [conversations, currentConversationId]);
 
   // --- Messages ------------------------------------------------------------
-  const { data: messages = [] } = useApiCollection<Message>(
+  const { data: messages = [], addItem, updateCollection, loading } = useApiCollection<Message>(
     ['messages', currentConversationId, token],
     {
       path: `/conversations/${currentConversationId}/messages`,
       enabled: !!currentConversationId,
       getId: (m) => m.id,
-    },
-  );
-
-  // --- Mutations -----------------------------------------------------------
-  const sendMessageMutation = useMutation(
-    async ({
-      conversationId: initialId,
-      model,
-      content,
-      files,
-    }: {
-      conversationId: string | null;
-      model: string;
-      content: string;
-      files: FileModel[];
-    }) => {
-      let conversationId = initialId;
-      if (!conversationId) {
-        const conv = await addConversation({ title: null });
-        conversationId = conv.id;
-        setCurrentConversationId(conv.id);
-        queryClient.setQueryData(['messages', conv.id, token], []);
-      }
-
-      const userMsg: Message = {
-        id: `${Date.now()}-user`,
-        role: 'user',
-        content,
-        files,
-      };
-      queryClient.setQueryData<Message[]>(
-        ['messages', conversationId, token],
-        (old = []) => [...old, userMsg],
-      );
-
-      await apiFetch(`/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ role: 'user', content, file_ids: files.map((f) => f.id) }),
-      });
-
-      const assistantMsg: Message = {
-        id: `${Date.now()}-assistant`,
-        role: 'assistant',
-        content: '',
-      };
-      queryClient.setQueryData<Message[]>(
-        ['messages', conversationId, token],
-        (old = []) => [...old, assistantMsg],
-      );
-
-      const res = await apiFetch(`/conversations/${conversationId}/reply`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ model }),
-      });
-
-      let assistantContent = '';
-      if (res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          assistantContent += decoder.decode(value, { stream: true });
-          queryClient.setQueryData<Message[]>(
-            ['messages', conversationId, token],
-            (old = []) =>
-              old.map((m) =>
-                m.id === assistantMsg.id ? { ...m, content: assistantContent } : m,
-              ),
-          );
-        }
-      }
-
-      await queryClient.invalidateQueries({
-        queryKey: ['messages', conversationId, token],
-      });
     },
   );
 
@@ -154,14 +72,71 @@ const Chat: React.FC = () => {
     queryClient.setQueryData(['messages', conv.id, token], []);
   };
 
-  const handleSendMessage = (content: string, files: FileModel[]) => {
-    if (!selectedModel) return;
-    sendMessageMutation.mutate({
-      conversationId: currentConversationId,
-      model: selectedModel,
+  const handleSendMessage = async (content: string, files: FileModel[]) => {
+    if (!selectedModel || !currentConversationId) return;
+
+    const userMsg: Message = {
+      id: `${Date.now()}-user`,
+      role: 'user',
       content,
       files,
+    };
+
+    await addItem(userMsg);
+
+    let assistantContent = '';
+    let assistantTmpId = `${Date.now()}-assistant-tmp`;
+
+    // Add a temporary assistant message to show loading state
+    updateCollection({
+      role: "assistant",
+      content: "Thinking...",
+      id: assistantTmpId,
     });
+
+    const res = await apiFetch(`/conversations/${currentConversationId}/reply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({model: selectedModel}),
+    });
+
+
+    if (res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      while (true) {
+        const {value, done} = await reader.read();
+        if (done) break;
+        let newValue = decoder.decode(value, {stream: true});
+        newValue = newValue.replace('data:','').trim();
+
+        const content = JSON.parse(newValue);
+
+        if(content.message) {
+          updateCollection(content.message);
+          updateCollection({
+            id : assistantTmpId,
+            content: '',
+            role: 'assistant'
+          },true);
+          break;
+        }
+
+        if(content.delta) {
+          assistantContent += content.delta;
+          updateCollection({
+            role: "assistant",
+            content: assistantContent,
+            id: assistantTmpId
+          });
+        }
+
+      }
+    }
+
+
   };
 
   // Filter conversations based on search term
@@ -258,7 +233,7 @@ const Chat: React.FC = () => {
           <ChatWindow
             messages={messages}
             onSend={handleSendMessage}
-            loadingReply={sendMessageMutation.isPending}
+            loadingReply={loading}
             conversationTitle={currentConversation?.title || 'Untitled Conversation'}
             isArchived={!!currentConversation?.archived}
             onRenameConversation={handleRenameCurrent}
