@@ -40,6 +40,7 @@ const Chat: React.FC = () => {
     data: conversations = [],
     addItem: addConversation,
     updateItem: updateConversation,
+    removeItem: removeConversation,
   } = useApiCollection<Conversation>(
     ['conversations', token],
     {
@@ -169,6 +170,30 @@ const Chat: React.FC = () => {
     return title.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  const currentConversation = conversations.find(
+    (c) => c.id === currentConversationId,
+  );
+
+  const handleRenameCurrent = (title: string) => {
+    if (!currentConversation) return;
+    updateConversation({ id: currentConversation.id, data: { title } });
+  };
+
+  const handleToggleArchiveCurrent = () => {
+    if (!currentConversation) return;
+    updateConversation({
+      id: currentConversation.id,
+      data: { archived: !currentConversation.archived },
+    });
+  };
+
+  const handleDeleteCurrent = async () => {
+    if (!currentConversation) return;
+    await removeConversation(currentConversation.id);
+    const remaining = conversations.filter((c) => c.id !== currentConversation.id);
+    setCurrentConversationId(remaining[0]?.id || null);
+  };
+
   return (
     <div className="h-screen flex bg-gray-50">
       {/* Sidebar on large screens */}
@@ -180,6 +205,16 @@ const Chat: React.FC = () => {
         onRenameConversation={(id, title) =>
           updateConversation({ id, data: { title } })
         }
+        onToggleArchiveConversation={(id, archived) =>
+          updateConversation({ id, data: { archived } })
+        }
+        onDeleteConversation={async (id) => {
+          await removeConversation(id);
+          if (currentConversationId === id) {
+            const remaining = conversations.filter((c) => c.id !== id);
+            setCurrentConversationId(remaining[0]?.id || null);
+          }
+        }}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         models={models}
@@ -224,6 +259,11 @@ const Chat: React.FC = () => {
             messages={messages}
             onSend={handleSendMessage}
             loadingReply={sendMessageMutation.isLoading}
+            conversationTitle={currentConversation?.title || 'Untitled Conversation'}
+            isArchived={!!currentConversation?.archived}
+            onRenameConversation={handleRenameCurrent}
+            onToggleArchive={handleToggleArchiveCurrent}
+            onDeleteConversation={handleDeleteCurrent}
           />
         </div>
       </div>
