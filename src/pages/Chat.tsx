@@ -2,11 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatWindow from '../components/ChatWindow';
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import useApi from '../hooks/useApi';
+import useApiQuery from '../hooks/useApiQuery';
+import useApiCollection from '../hooks/useApiCollection';
 
 interface Conversation {
   id: string;
@@ -21,7 +20,7 @@ interface Message {
 
 const Chat: React.FC = () => {
   const { token } = useAuth();
-  const baseUrl = import.meta.env.VITE_API_URL;
+  const apiFetch = useApi();
   const queryClient = useQueryClient();
 
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(
@@ -31,22 +30,11 @@ const Chat: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
 
   // --- Models ---------------------------------------------------------------
-  const fetchModels = async (): Promise<string[]> => {
-    const res = await fetch(`${baseUrl}/v1/models`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error('Failed to fetch models');
-    const data = await res.json();
-    return Array.isArray((data as any).data)
-      ? (data as any).data.map((m: any) => m.id)
-      : [];
-  };
-
-  const { data: models = [] } = useQuery([
-    'models',
-    token,
-  ], fetchModels, {
+  const { data: models = [] } = useApiQuery<string[]>(['models', token], {
+    path: '/v1/models',
     enabled: !!token,
+    transform: (data: any) =>
+      Array.isArray(data.data) ? data.data.map((m: any) => m.id) : [],
   });
 
   useEffect(() => {
@@ -56,20 +44,16 @@ const Chat: React.FC = () => {
   }, [models, selectedModel]);
 
   // --- Conversations -------------------------------------------------------
-  const fetchConversations = async (): Promise<Conversation[]> => {
-    const res = await fetch(`${baseUrl}/conversations`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error('Failed to fetch conversations');
-    return res.json();
-  };
-
-  const { data: conversations = [] } = useQuery([
-    'conversations',
-    token,
-  ], fetchConversations, {
-    enabled: !!token,
-  });
+  const { data: conversations = [], addItem: addConversation } = useApiCollection<
+    Conversation
+  >(
+    ['conversations', token],
+    {
+      path: '/conversations',
+      enabled: !!token,
+      getId: (c) => c.id,
+    },
+  );
 
   useEffect(() => {
     if (!currentConversationId && conversations.length > 0) {
@@ -78,52 +62,24 @@ const Chat: React.FC = () => {
   }, [conversations, currentConversationId]);
 
   // --- Messages ------------------------------------------------------------
-  const fetchMessages = async (): Promise<Message[]> => {
-    if (!currentConversationId) return [];
-    const res = await fetch(`${baseUrl}/conversations/${currentConversationId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new Error('Failed to fetch messages');
-    const data = await res.json();
-    return Array.isArray(data.messages) ? data.messages : [];
-  };
-
-  const { data: messages = [] } = useQuery(
+  const { data: messages = [] } = useApiQuery<Message[]>(
     ['messages', currentConversationId, token],
-    fetchMessages,
-    { enabled: !!currentConversationId },
+    {
+      path: `/conversations/${currentConversationId}`,
+      enabled: !!currentConversationId,
+      transform: (data: any) =>
+        Array.isArray(data.messages) ? data.messages : [],
+    },
   );
 
   // --- Mutations -----------------------------------------------------------
-  const createConversation = async (): Promise<Conversation> => {
-    const res = await fetch(`${baseUrl}/conversations`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ title: null }),
-    });
-    if (!res.ok) throw new Error('Failed to create conversation');
-    return res.json();
-  };
-
-  const createConversationMutation = useMutation(createConversation, {
-    onSuccess: (conv) => {
-      queryClient.invalidateQueries(['conversations', token]);
-      setCurrentConversationId(conv.id);
-      queryClient.setQueryData(['messages', conv.id, token], []);
-    },
-  });
-
   const sendMessageMutation = useMutation(
     async (content: string) => {
       let conversationId = currentConversationId;
       if (!conversationId) {
-        const conv = await createConversation();
+        const conv = await addConversation({ title: null });
         conversationId = conv.id;
         setCurrentConversationId(conv.id);
-        queryClient.invalidateQueries(['conversations', token]);
         queryClient.setQueryData(['messages', conv.id, token], []);
       }
 
@@ -137,21 +93,19 @@ const Chat: React.FC = () => {
         (old = []) => [...old, userMsg],
       );
 
-      await fetch(`${baseUrl}/conversations/${conversationId}/messages`, {
+      await apiFetch(`/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ role: 'user', content }),
       });
 
-      const res = await fetch(`${baseUrl}/v1/chat/completions`, {
+      const res = await apiFetch('/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Conversation-Id': conversationId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           model: selectedModel,
@@ -178,19 +132,20 @@ const Chat: React.FC = () => {
         (old = []) => [...old, assistantMsg],
       );
 
-      await fetch(`${baseUrl}/conversations/${conversationId}/messages`, {
+      await apiFetch(`/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ role: 'assistant', content: assistantContent }),
       });
     },
   );
 
-  const handleNewChat = () => {
-    createConversationMutation.mutate();
+  const handleNewChat = async () => {
+    const conv = await addConversation({ title: null });
+    setCurrentConversationId(conv.id);
+    queryClient.setQueryData(['messages', conv.id, token], []);
   };
 
   const handleSendMessage = (content: string) => {
