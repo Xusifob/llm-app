@@ -57,19 +57,82 @@ const Chat: React.FC = () => {
   }, [conversations, currentConversationId]);
 
   // --- Messages ------------------------------------------------------------
-  const { data: messages = [], addItem, updateCollection, loading } = useApiCollection<Message>(
-    ['messages', currentConversationId, token],
-    {
-      path: `/conversations/${currentConversationId}/messages`,
-      enabled: !!currentConversationId,
-      getId: (m) => m.id,
-    },
-  );
+  const {
+    data: messages = [],
+    addItem,
+    updateItem: updateMessage,
+    removeItem: removeMessage,
+    updateCollection,
+    loading,
+  } = useApiCollection<Message>([
+    'messages',
+    currentConversationId,
+    token,
+  ], {
+    path: `/conversations/${currentConversationId}/messages`,
+    enabled: !!currentConversationId,
+    getId: (m) => m.id,
+  });
 
   const handleNewChat = async () => {
     const conv = await addConversation({ title: null });
     setCurrentConversationId(conv.id);
     queryClient.setQueryData(['messages', conv.id, token], []);
+  };
+
+  const callReply = async () => {
+    if (!selectedModel || !currentConversationId) return;
+
+    let assistantContent = '';
+    const assistantTmpId = `${Date.now()}-assistant-tmp`;
+
+    updateCollection({
+      role: 'assistant',
+      content: 'Thinking...',
+      id: assistantTmpId,
+    });
+
+    const res = await apiFetch(
+      `/conversations/${currentConversationId}/reply`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model: selectedModel }),
+      },
+    );
+
+    if (res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        let newValue = decoder.decode(value, { stream: true });
+        newValue = newValue.replace('data:', '').trim();
+
+        const content = JSON.parse(newValue);
+
+        if (content.message) {
+          updateCollection(content.message);
+          updateCollection(
+            { id: assistantTmpId, content: '', role: 'assistant' },
+            true,
+          );
+          break;
+        }
+
+        if (content.delta) {
+          assistantContent += content.delta;
+          updateCollection({
+            role: 'assistant',
+            content: assistantContent,
+            id: assistantTmpId,
+          });
+        }
+      }
+    }
   };
 
   const handleSendMessage = async (content: string, files: FileModel[]) => {
@@ -84,59 +147,27 @@ const Chat: React.FC = () => {
 
     await addItem(userMsg);
 
-    let assistantContent = '';
-    let assistantTmpId = `${Date.now()}-assistant-tmp`;
+    await callReply();
+  };
 
-    // Add a temporary assistant message to show loading state
-    updateCollection({
-      role: "assistant",
-      content: "Thinking...",
-      id: assistantTmpId,
-    });
+  const handleUpdateMessage = async (id: string, content: string) => {
+    if (!selectedModel || !currentConversationId) return;
 
-    const res = await apiFetch(`/conversations/${currentConversationId}/reply`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({model: selectedModel}),
-    });
+    await updateMessage({ id, data: { content } });
 
-
-    if (res.body) {
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      while (true) {
-        const {value, done} = await reader.read();
-        if (done) break;
-        let newValue = decoder.decode(value, {stream: true});
-        newValue = newValue.replace('data:','').trim();
-
-        const content = JSON.parse(newValue);
-
-        if(content.message) {
-          updateCollection(content.message);
-          updateCollection({
-            id : assistantTmpId,
-            content: '',
-            role: 'assistant'
-          },true);
-          break;
-        }
-
-        if(content.delta) {
-          assistantContent += content.delta;
-          updateCollection({
-            role: "assistant",
-            content: assistantContent,
-            id: assistantTmpId
-          });
-        }
-
-      }
+    const msgs =
+      queryClient.getQueryData<Message[]>([
+        'messages',
+        currentConversationId,
+        token,
+      ]) || [];
+    const index = msgs.findIndex((m) => m.id === id);
+    const toRemove = msgs.slice(index + 1);
+    for (const m of toRemove) {
+      await removeMessage(m.id);
     }
 
-
+    await callReply();
   };
 
   // Filter conversations based on search term
@@ -233,6 +264,7 @@ const Chat: React.FC = () => {
           <ChatWindow
             messages={messages}
             onSend={handleSendMessage}
+            onUpdateMessage={handleUpdateMessage}
             loadingReply={loading}
             conversationTitle={currentConversation?.title || 'Untitled Conversation'}
             isArchived={!!currentConversation?.archived}

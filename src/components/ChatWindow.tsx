@@ -7,6 +7,7 @@ import { FiEdit, FiArchive, FiInbox, FiTrash, FiCheck, FiX } from 'react-icons/f
 interface ChatWindowProps {
   messages: Message[];
   onSend: (content: string, files: FileModel[]) => void;
+  onUpdateMessage: (id: string, content: string) => void;
   loadingReply: boolean;
   conversationTitle: string;
   isArchived: boolean;
@@ -21,6 +22,7 @@ interface ChatWindowProps {
 const ChatWindow: React.FC<ChatWindowProps> = ({
   messages,
   onSend,
+  onUpdateMessage,
   loadingReply,
   conversationTitle,
   isArchived,
@@ -35,6 +37,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageContent, setEditingMessageContent] = useState('');
 
   const handleFiles = async (fileList: FileList) => {
     const arr = Array.from(fileList);
@@ -82,6 +86,15 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
     onSend(trimmed, files);
     setInput('');
     setFiles([]);
+  };
+
+  const handleUpdate = () => {
+    if (!editingMessageId) return;
+    const trimmed = editingMessageContent.trim();
+    if (!trimmed) return;
+    onUpdateMessage(editingMessageId, trimmed);
+    setEditingMessageId(null);
+    setEditingMessageContent('');
   };
 
   // Scroll to bottom whenever messages change
@@ -160,16 +173,57 @@ const ChatWindow: React.FC<ChatWindowProps> = ({
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
-            <div>
-              <div
-                className={`max-w-sm p-3 rounded-lg text-sm whitespace-pre-wrap ${
-                  msg.role === 'user'
-                    ? 'bg-indigo-600 text-white rounded-br-none'
-                    : 'bg-gray-200 text-gray-900 rounded-bl-none'
-                }`}
-              >
-                {msg.content}
-              </div>
+            <div className="space-y-1">
+              {editingMessageId === msg.id ? (
+                <div className="max-w-sm">
+                  <textarea
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={editingMessageContent}
+                    onChange={(e) => setEditingMessageContent(e.target.value)}
+                    rows={3}
+                  />
+                  <div className="flex justify-end space-x-2 mt-1 text-xs">
+                    <button
+                      onClick={handleUpdate}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <FiCheck />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingMessageId(null);
+                        setEditingMessageContent('');
+                      }}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      <FiX />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div
+                    className={`max-w-sm p-3 rounded-lg text-sm whitespace-pre-wrap ${
+                      msg.role === 'user'
+                        ? 'bg-indigo-600 text-white rounded-br-none'
+                        : 'bg-gray-200 text-gray-900 rounded-bl-none'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                  {msg.role === 'user' && (
+                    <button
+                      onClick={() => {
+                        setEditingMessageId(msg.id);
+                        setEditingMessageContent(msg.content);
+                      }}
+                      className="text-gray-500 hover:text-gray-700 text-xs"
+                    >
+                      <FiEdit />
+                    </button>
+                  )}
+                </>
+              )}
               {msg.files && msg.files.length > 0 && (
                 <div className="mt-1 text-xs">
                   {msg.files.map((file) => (
