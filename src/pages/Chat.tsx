@@ -164,7 +164,7 @@ const Chat: React.FC = () => {
     const index = msgs.findIndex((m) => m.id === id);
     const toRemove = msgs.slice(index + 1);
     for (const m of toRemove) {
-      await removeMessage(m.id);
+      updateCollection(m,true);
     }
 
     await callReply();
